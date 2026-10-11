@@ -1,0 +1,854 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Mini.AI</title>
+  <meta name="description" content="Mini.AI — a minimalist AI assistant." />
+  <meta name="theme-color" content="#0a0a0a" />
+  <link rel="icon" href="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/WhatsApp%20Image%202026-10-11%20at%2021.00.12-YhU6XNV6cu45Ois81PcTjmrV3EFyv2.jpeg" />
+
+  <script>
+    (function () {
+      try {
+        var s = JSON.parse(localStorage.getItem('mini.settings') || '{}');
+        var theme = s.theme || 'dark';
+        var dark = theme === 'dark' || (theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.classList.toggle('dark', dark);
+        if (s.language) document.documentElement.lang = s.language;
+      } catch (e) {}
+    })();
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Noto+Sans+Armenian:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Geist', 'Noto Sans Armenian', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+            mono: ['Geist Mono', 'ui-monospace', 'monospace'],
+          },
+        },
+      },
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+
+  <style>
+    html, body { height: 100%; }
+    body { -webkit-font-smoothing: antialiased; }
+    .scrollbar-thin { scrollbar-width: thin; scrollbar-color: rgb(127 127 127 / 0.3) transparent; }
+    .md { line-height: 1.75; overflow-wrap: anywhere; }
+    .md > * + * { margin-top: 0.85em; }
+    .md h1 { font-size: 1.5em; font-weight: 600; }
+    .md h2 { font-size: 1.25em; font-weight: 600; }
+    .md h3 { font-size: 1.1em; font-weight: 600; }
+    .md ul { list-style: disc; padding-left: 1.4em; }
+    .md ol { list-style: decimal; padding-left: 1.4em; }
+    .md li + li { margin-top: 0.3em; }
+    .md a { text-decoration: underline; text-underline-offset: 3px; }
+    .md strong { font-weight: 600; }
+    .md blockquote { border-left: 2px solid currentColor; opacity: 0.8; padding-left: 1em; }
+    .md :not(pre) > code { font-family: 'Geist Mono', monospace; font-size: 0.875em; padding: 0.15em 0.4em; border-radius: 0.375rem; background: rgb(127 127 127 / 0.15); }
+    .md pre { font-family: 'Geist Mono', monospace; font-size: 0.85em; padding: 1rem; border-radius: 0.75rem; overflow-x: auto; background: #f4f4f5; border: 1px solid #e4e4e7; }
+    .dark .md pre { background: #141414; border-color: #262626; }
+    .md table { width: 100%; border-collapse: collapse; font-size: 0.9em; display: block; overflow-x: auto; }
+    .md th, .md td { border: 1px solid rgb(127 127 127 / 0.25); padding: 0.4em 0.7em; text-align: left; }
+    .md hr { border-color: rgb(127 127 127 / 0.25); }
+    @keyframes blink { 0%, 80%, 100% { opacity: 0.2; transform: scale(0.85); } 40% { opacity: 1; transform: scale(1); } }
+    .dot { animation: blink 1.2s infinite ease-in-out; }
+    .dot:nth-child(2) { animation-delay: 0.15s; }
+    .dot:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    .rise { animation: rise 0.25s ease-out backwards; }
+    @media (prefers-reduced-motion: reduce) { .rise, .dot { animation: none; } * { transition: none !important; } }
+    /* Mini.AI layout controls */
+    html { font-size: var(--mini-ui-scale, 100%); }
+    #sidebar { width: var(--mini-sidebar-width, 280px); }
+    #history { padding-left: var(--mini-side-pad, 0.75rem); padding-right: var(--mini-side-pad, 0.75rem); }
+    #messages > .flex.flex-col { gap: var(--mini-message-gap, 2rem); }
+    #history .mt-4 { margin-top: var(--mini-history-gap, 1rem); }
+    html[data-mini-density="compact"] #messages > .flex.flex-col { gap: 1rem; }
+    html[data-mini-density="compact"] #history .mt-4 { margin-top: .5rem; }
+    html[data-mini-density="compact"] #history button[data-chat] { padding-top: .35rem; padding-bottom: .35rem; }
+    html[data-mini-density="comfortable"] #messages > .flex.flex-col { gap: 2rem; }
+    html[data-mini-density="spacious"] #messages > .flex.flex-col { gap: 2.75rem; }
+    html[data-mini-density="spacious"] #history .mt-4 { margin-top: 1.5rem; }
+    html[data-mini-density="spacious"] #history button[data-chat] { padding-top: .65rem; padding-bottom: .65rem; }
+  </style>
+</head>
+<body class="bg-white font-sans text-neutral-950 dark:bg-[#0a0a0a] dark:text-neutral-50">
+  <div class="flex h-dvh overflow-hidden">
+    <div id="backdrop" class="fixed inset-0 z-30 bg-black/60 opacity-0 pointer-events-none transition-opacity duration-300 md:hidden" aria-hidden="true"></div>
+
+    <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 flex w-[280px] -translate-x-full flex-col border-r border-neutral-200 bg-neutral-50 transition-transform duration-300 ease-out dark:border-neutral-900 dark:bg-black md:static md:translate-x-0" aria-label="Sidebar">
+      <div class="flex items-center justify-between px-3 pt-3 pb-2">
+        <div class="flex items-center gap-2.5 px-1.5">
+          <span class="logo-slot"></span>
+          <span class="text-[15px] font-semibold tracking-tight">Mini.AI</span>
+        </div>
+        <button id="closeSidebar" type="button" class="flex size-9 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-200 hover:text-neutral-950 dark:hover:bg-neutral-900 dark:hover:text-white md:hidden" data-i18n-label="close"></button>
+      </div>
+
+      <div class="px-3 pb-2">
+        <button id="newChatBtn" type="button" class="flex w-full items-center justify-between rounded-xl border border-neutral-200 bg-white px-3.5 py-2.5 text-sm font-medium transition-colors hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-950 dark:hover:bg-neutral-900">
+          <span data-i18n="newChat"></span>
+          <span class="icon-plus"></span>
+        </button>
+      </div>
+
+      <nav id="history" class="scrollbar-thin flex-1 overflow-y-auto px-3 pb-3" data-i18n-label="history"></nav>
+
+      <div class="border-t border-neutral-200 p-3 dark:border-neutral-900">
+        <button id="settingsBtn" type="button" class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-200 hover:text-neutral-950 dark:text-neutral-300 dark:hover:bg-neutral-900 dark:hover:text-white">
+          <span class="icon-settings"></span>
+          <span data-i18n="settings"></span>
+        </button>
+      </div>
+    </aside>
+
+    <main class="flex min-w-0 flex-1 flex-col">
+      <header class="flex h-14 shrink-0 items-center justify-between gap-2 px-3 md:px-5">
+        <div class="flex min-w-0 items-center gap-1">
+          <button id="openSidebar" type="button" class="flex size-10 items-center justify-center rounded-lg text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-900 md:hidden" data-i18n-label="openMenu"></button>
+          <div class="flex min-w-0 items-center gap-2 px-1">
+            <span id="modelName" class="truncate text-[15px] font-semibold tracking-tight"></span>
+            <span id="demoBadge" class="hidden shrink-0 rounded-full border border-neutral-300 px-2 py-0.5 text-[11px] font-medium text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">Demo</span>
+          </div>
+        </div>
+        <button id="headerNewChat" type="button" class="flex size-10 items-center justify-center rounded-lg text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-900" data-i18n-label="newChat"></button>
+      </header>
+
+      <div id="scroller" class="scrollbar-thin flex-1 overflow-y-auto">
+        <div id="messages" class="mx-auto w-full max-w-3xl px-4 pb-6 md:px-6" aria-live="polite"></div>
+      </div>
+
+      <div class="shrink-0 px-3 pb-3 md:px-6 md:pb-4" style="padding-bottom: max(0.75rem, env(safe-area-inset-bottom));">
+        <form id="composer" class="mx-auto w-full max-w-3xl">
+          <div class="flex items-end gap-2 rounded-[26px] border border-neutral-200 bg-neutral-50 p-2 pl-4 shadow-sm transition-colors focus-within:border-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:focus-within:border-neutral-600">
+            <label for="input" class="sr-only" data-i18n="placeholder"></label>
+            <textarea id="input" rows="1" class="max-h-52 min-h-[40px] flex-1 resize-none bg-transparent py-2 text-[15px] leading-6 outline-none placeholder:text-neutral-500"></textarea>
+            <button id="sendBtn" type="submit" class="flex size-10 shrink-0 items-center justify-center rounded-full bg-neutral-950 text-white transition-all hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-25 dark:bg-white dark:text-black"></button>
+          </div>
+          <p class="mt-2 text-center text-xs text-neutral-500" data-i18n="disclaimer"></p>
+        </form>
+      </div>
+    </main>
+  </div>
+
+  <div id="settingsModal" class="fixed inset-0 z-50 hidden items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+    <div role="dialog" aria-modal="true" aria-labelledby="settingsTitle" class="rise flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-[#111] sm:max-w-lg sm:rounded-3xl">
+      <div class="flex items-center justify-between border-b border-neutral-200 px-6 py-4 dark:border-neutral-800">
+        <h2 id="settingsTitle" class="text-lg font-semibold" data-i18n="settings"></h2>
+        <button id="closeSettings" type="button" class="flex size-9 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-neutral-950 dark:hover:bg-neutral-900 dark:hover:text-white" data-i18n-label="close"></button>
+      </div>
+      <div id="settingsBody" class="scrollbar-thin overflow-y-auto px-6"></div>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    'use strict';
+
+    var LOGO_URL = 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/WhatsApp%20Image%202026-10-11%20at%2021.00.12-YhU6XNV6cu45Ois81PcTjmrV3EFyv2.jpeg';
+
+    var LANGUAGES = [
+      { code: 'hy', native: 'Հայերեն', english: 'Armenian' },
+      { code: 'en', native: 'English', english: 'English' },
+      { code: 'ru', native: 'Русский', english: 'Russian' },
+    ];
+
+    var MODELS = [
+      { id: 'google/gemini-3.8-flash', name: 'Mini Fast', descKey: 'fast' },
+      { id: 'openai/gpt-5.5', name: 'Mini Pro', descKey: 'smart' },
+      { id: 'anthropic/claude-sonnet-5.5', name: 'Mini Muse', descKey: 'creative' },
+    ];
+
+    var STYLES = ['concise', 'balanced', 'detailed'];
+
+    var DICT = {
+      en: {
+        newChat: 'New chat', settings: 'Settings', today: 'Today', previous7: 'Previous 7 days', older: 'Older',
+        noChats: 'Your conversations will appear here.', history: 'Chat history', placeholder: 'Message Mini.AI',
+        disclaimer: 'Mini.AI can make mistakes. Check important info.', greeting: 'What can I help with?',
+        greetingSub: 'Ask anything. Write, learn, plan, or create.',
+        suggestions: [
+          { title: 'Explain a concept', prompt: 'Explain quantum computing in simple terms.' },
+          { title: 'Write something', prompt: 'Write a short, friendly email to reschedule a meeting.' },
+          { title: 'Plan a trip', prompt: 'Plan a 3-day trip to Yerevan with must-see places.' },
+          { title: 'Help me code', prompt: 'Write a JavaScript function that debounces another function.' },
+        ],
+        language: 'Language', languageDesc: 'Interface and AI response language', theme: 'Theme', dark: 'Dark', light: 'Light', system: 'System',
+        interfaceSize: 'Interface size', interfaceSizeDesc: 'Make the menu and interface larger or smaller', density: 'Spacing mode', compact: 'Compact', comfortable: 'Comfortable', spacious: 'Spacious', sidebarSize: 'Menu width', resetLayout: 'Reset layout',
+        aiPreferences: 'AI preferences', model: 'Model', responseStyle: 'Response style', concise: 'Concise', balanced: 'Balanced', detailed: 'Detailed',
+        customInstructions: 'Custom instructions', customPlaceholder: 'What would you like Mini.AI to know about you or how it should respond?',
+        connection: 'AI connection', connectionDesc: 'Any OpenAI-compatible API: Vercel AI Gateway, OpenAI, OpenRouter, or a local Ollama server. Your key is stored only in this browser.',
+        baseUrl: 'API base URL', apiKey: 'API key', customModel: 'Custom model ID (optional)', customModelPh: 'Overrides the selected model',
+        dataControls: 'Data controls', clearChatsDesc: 'Remove every conversation from this browser.', clear: 'Clear',
+        copy: 'Copy', copied: 'Copied', regenerate: 'Regenerate', stop: 'Stop generating', send: 'Send message', deleteChat: 'Delete chat',
+        openMenu: 'Open menu', close: 'Close', errorMsg: 'Something went wrong while generating a response.', retry: 'Retry', thinking: 'Thinking', you: 'You',
+        models: { fast: 'Fast and efficient', smart: 'Balanced reasoning', creative: 'Thoughtful writing' },
+        demo: '**Demo mode.** Mini.AI isn\'t connected to an AI model yet, so this is a sample reply.\n\nTo get real answers, open **Settings → AI connection** and add an API key, or point the base URL to a local Ollama server (`http://localhost:11434/v1`).\n\n> You asked: ',
+      },
+      hy: {
+        newChat: 'Նոր զրույց', settings: 'Կարգավորումներ', today: 'Այսօր', previous7: 'Վերջին 7 օրը', older: 'Ավելի վաղ',
+        noChats: 'Ձեր զրույցները կհայտնվեն այստեղ։', history: 'Զրույցների պատմություն', placeholder: 'Գրեք Mini.AI-ին',
+        disclaimer: 'Mini.AI-ը կարող է սխալվել։ Ստուգեք կարևոր տեղեկությունները։', greeting: 'Ինչո՞վ կարող եմ օգնել։',
+        greetingSub: 'Հարցրեք ցանկացած բան։ Գրեք, սովորեք, պլանավորեք կամ ստեղծեք։',
+        suggestions: [
+          { title: 'Բացատրիր հասկացություն', prompt: 'Բացատրիր քվանտային հաշվարկները պարզ բառերով։' },
+          { title: 'Գրիր ինչ-որ բան', prompt: 'Գրիր կարճ, ընկերական նամակ՝ հանդիպումը տեղափոխելու համար։' },
+          { title: 'Պլանավորիր ուղևորություն', prompt: 'Կազմիր 3-օրյա ուղևորության պլան Երևանում՝ պարտադիր տեսարժան վայրերով։' },
+          { title: 'Օգնիր կոդի հարցում', prompt: 'Գրիր JavaScript ֆունկցիա, որը debounce է անում մեկ այլ ֆունկցիա։' },
+        ],
+        language: 'Լեզու', languageDesc: 'Ինտերֆեյսի և AI պատասխանների լեզուն', theme: 'Թեմա', dark: 'Մուգ', light: 'Բաց', system: 'Համակարգային',
+        interfaceSize: 'Ինտերֆեյսի չափը', interfaceSizeDesc: 'Մեծացրեք կամ փոքրացրեք մենյուն և ինտերֆեյսը', density: 'Հեռավորության ռեժիմ', compact: 'Կոմպակտ', comfortable: 'Սովորական', spacious: 'Ընդարձակ', sidebarSize: 'Մենյուի լայնություն', resetLayout: 'Վերականգնել չափերը',
+        aiPreferences: 'AI նախընտրություններ', model: 'Մոդել', responseStyle: 'Պատասխանի ոճ', concise: 'Հակիրճ', balanced: 'Հավասարակշռված', detailed: 'Մանրամասն',
+        customInstructions: 'Անհատական հրահանգներ', customPlaceholder: 'Ի՞նչ պետք է իմանա Mini.AI-ը ձեր մասին կամ ինչպե՞ս պատասխանի։',
+        connection: 'AI միացում', connectionDesc: 'Ցանկացած OpenAI-համատեղելի API՝ Vercel AI Gateway, OpenAI, OpenRouter կամ տեղային Ollama։ Բանալին պահվում է միայն այս բրաուզերում։',
+        baseUrl: 'API հասցե', apiKey: 'API բանալի', customModel: 'Մոդելի ID (ըստ ցանկության)', customModelPh: 'Փոխարինում է ընտրված մոդելին',
+        dataControls: 'Տվյալների կառավարում', clearChatsDesc: 'Հեռացնել բոլոր զրույցները այս բրաուզերից։', clear: 'Ջնջել',
+        copy: 'Պատճենել', copied: 'Պատճենված է', regenerate: 'Վերագեներացնել', stop: 'Դադարեցնել', send: 'Ուղարկել', deleteChat: 'Ջնջել զրույցը',
+        openMenu: 'Բացել մենյուն', close: 'Փակել', errorMsg: 'Պատասխանը ստեղծելիս սխալ տեղի ունեցավ։', retry: 'Կրկնել', thinking: 'Մտածում եմ', you: 'Դուք',
+        models: { fast: 'Արագ և արդյունավետ', smart: 'Հավասարակշռված մտածողություն', creative: 'Խորը և ստեղծագործական' },
+        demo: '**Դեմո ռեժ��մ։** Mini.AI-ը դեռ միացված չէ AI մոդելին, ուստի սա օրինակային պատասխան է։\n\nԻրական պատասխաններ ստանալու համար բացեք **Կարգավորումներ → AI միացում** և ավելացրեք API բանալի կամ նշեք տեղային Ollama սերվեր (`http://localhost:11434/v1`)։\n\n> Ձեր հարցը՝ ',
+      },
+      ru: {
+        newChat: 'Новый чат', settings: 'Настройки', today: 'Сегодня', previous7: 'Последние 7 дней', older: 'Ранее',
+        noChats: 'Здесь появятся ваши разговоры.', history: 'История чатов', placeholder: 'Сообщение для Mini.AI',
+        disclaimer: 'Mini.AI может ошибаться. Проверяйте важную информацию.', greeting: 'Чем могу помочь?',
+        greetingSub: 'Спросите что угодно. Пишите, учитесь, планируйте, создавайте.',
+        suggestions: [
+          { title: 'Объясни понятие', prompt: 'Объясни квантовые вычисления простыми словами.' },
+          { title: 'Напиши текст', prompt: '��апиши короткое дружелюбное письмо о переносе встречи.' },
+          { title: 'Спланируй поездку', prompt: 'Составь план поездки в Ереван на 3 дня с главными достопримечательностями.' },
+          { title: 'Помоги с кодом', prompt: 'Напиши функцию debounce на JavaScript.' },
+        ],
+        language: 'Язык', languageDesc: 'Язык интерфейса и ответов ИИ', theme: 'Тема', dark: 'Тёмная', light: 'Светлая', system: 'Системная',
+        interfaceSize: 'Размер интерфейса', interfaceSizeDesc: 'Увеличьте или уменьшите меню и интерфейс', density: 'Интервалы', compact: 'Компактный', comfortable: 'Обычный', spacious: 'Просторный', sidebarSize: 'Ширина меню', resetLayout: 'Сбросить размеры',
+        aiPreferences: 'Настройки ИИ', model: 'Модель', responseStyle: 'Стиль ответа', concise: 'Кратко', balanced: 'Сбалансированно', detailed: 'Подробно',
+        customInstructions: 'Пользовательские инструкции', customPlaceholder: 'Что Mini.AI следует знать о вас или как ему отвечать?',
+        connection: 'Подключение ИИ', connectionDesc: 'Любой OpenAI-совместимый API: Vercel AI Gateway, OpenAI, OpenRouter или локальный Ollama. Ключ хранится только в этом браузере.',
+        baseUrl: 'Базовый URL API', apiKey: 'API-ключ', customModel: 'ID модели (необязательно)', customModelPh: 'Заменяет выбранную модель',
+        dataControls: 'Управление данными', clearChatsDesc: 'Удалить все разговоры из этого браузера.', clear: 'Удалить',
+        copy: 'Копировать', copied: 'Скопировано', regenerate: 'Сгенерировать заново', stop: 'Остановить', send: 'Отправить', deleteChat: 'Удалить чат',
+        openMenu: 'Открыть меню', close: 'Закрыть', errorMsg: 'При генерации ответа произошла ошибка.', retry: 'Повторить', thinking: 'Думаю', you: 'Вы',
+        models: { fast: 'Быстрая и эффективная', smart: 'Сбалансированное мышление', creative: 'Вдумчивые тексты' },
+        demo: '**Демо-режим.** Mini.AI пока не подключён к модели ИИ, поэтому это пример ответа.\n\nЧтобы получать настоящие ответы, откройте **Настройки → Подключение ИИ** и добавьте API-ключ или укажите локальный сервер Ollama (`http://localhost:11434/v1`).\n\n> Ваш вопрос: ',
+      },
+    };
+
+    var ICONS = {
+      plus: '<path d="M12 5v14M5 12h14"/>',
+      settings: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+      menu: '<path d="M4 7h16M4 12h10M4 17h16"/>',
+      x: '<path d="M18 6 6 18M6 6l12 12"/>',
+      edit: '<path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4Z"/>',
+      arrowUp: '<path d="m5 12 7-7 7 7M12 19V5"/>',
+      stop: '<rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/>',
+      copy: '<rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+      check: '<path d="M20 6 9 17l-5-5"/>',
+      refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+      trash: '<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+      moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+      sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
+      monitor: '<rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8M12 17v4"/>',
+      alert: '<circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>',
+    };
+
+    function icon(name, size) {
+      size = size || 18;
+      return '<svg xmlns="http://www.w3.org/2000/svg" width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[name] + '</svg>';
+    }
+
+    function logo(size) {
+      return '<img src="' + LOGO_URL + '" alt="" width="' + size + '" height="' + size + '" class="shrink-0 select-none object-contain mix-blend-multiply dark:invert dark:mix-blend-screen" style="width:' + size + 'px;height:' + size + 'px" draggable="false" />';
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+
+    function renderMarkdown(text) {
+      if (window.marked && window.DOMPurify) {
+        return DOMPurify.sanitize(marked.parse(text, { breaks: true, gfm: true }));
+      }
+      return '<p>' + escapeHtml(text).replace(/\n/g, '<br>') + '</p>';
+    }
+
+    function uid() {
+      return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    }
+
+    function load(key, fallback) {
+      try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; }
+    }
+
+    function save(key, value) {
+      try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+    }
+
+    var DEFAULT_SETTINGS = {
+      language: 'en', theme: 'dark', model: MODELS[0].id, style: 'balanced', instructions: '',
+      uiScale: 100, density: 'compact', sidebarWidth: 100,
+      baseUrl: 'https://ai-gateway.vercel.sh/v1', apiKey: '', customModel: '',
+    };
+
+    var state = {
+      settings: Object.assign({}, DEFAULT_SETTINGS, load('mini.settings', {})),
+      chats: load('mini.chats', []),
+      activeId: null,
+      streaming: null,
+      copiedIndex: null,
+    };
+
+    function t() { return DICT[state.settings.language] || DICT.en; }
+    function activeChat() { return state.chats.find(function (c) { return c.id === state.activeId; }) || null; }
+    function persistChats() { save('mini.chats', state.chats); }
+    function isLocalUrl(url) { return /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)/i.test(url || ''); }
+    function isDemo() { return !state.settings.apiKey.trim() && !isLocalUrl(state.settings.baseUrl); }
+
+    function currentModel() {
+      return MODELS.find(function (m) { return m.id === state.settings.model; }) || MODELS[0];
+    }
+
+    var $ = function (sel) { return document.querySelector(sel); };
+    var els = {
+      sidebar: $('#sidebar'), backdrop: $('#backdrop'), history: $('#history'), messages: $('#messages'), scroller: $('#scroller'),
+      input: $('#input'), send: $('#sendBtn'), composer: $('#composer'), modal: $('#settingsModal'), settingsBody: $('#settingsBody'),
+      modelName: $('#modelName'), demoBadge: $('#demoBadge'),
+    };
+
+    function applyLayout() {
+      var root = document.documentElement;
+      var scale = Math.max(85, Math.min(120, Number(state.settings.uiScale) || 100));
+      var sidebarScale = Math.max(70, Math.min(130, Number(state.settings.sidebarWidth) || 100));
+      var width = Math.round(280 * sidebarScale / 100);
+      var density = ['compact', 'comfortable', 'spacious'].indexOf(state.settings.density) >= 0 ? state.settings.density : 'compact';
+      root.style.setProperty('--mini-ui-scale', scale + '%');
+      root.style.setProperty('--mini-sidebar-width', width + 'px');
+      root.dataset.miniDensity = density;
+      var scaleOut = $('#uiScaleValue');
+      if (scaleOut) scaleOut.textContent = scale + '%';
+      var widthOut = $('#sidebarWidthValue');
+      if (widthOut) widthOut.textContent = sidebarScale + '%';
+    }
+
+    function applyTheme() {
+      var theme = state.settings.theme;
+      var dark = theme === 'dark' || (theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.classList.toggle('dark', dark);
+      document.querySelector('meta[name="theme-color"]').setAttribute('content', dark ? '#0a0a0a' : '#ffffff');
+    }
+
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
+      if (state.settings.theme === 'system') applyTheme();
+    });
+
+    function applyStaticText() {
+      var d = t();
+      document.documentElement.lang = state.settings.language;
+      document.querySelectorAll('[data-i18n]').forEach(function (el) { el.textContent = d[el.dataset.i18n]; });
+      document.querySelectorAll('[data-i18n-label]').forEach(function (el) { el.setAttribute('aria-label', d[el.dataset.i18nLabel]); });
+      els.input.placeholder = d.placeholder;
+      els.modelName.textContent = state.settings.customModel.trim() || currentModel().name;
+      els.demoBadge.classList.toggle('hidden', !isDemo());
+    }
+
+    function renderStaticIcons() {
+      document.querySelectorAll('.logo-slot').forEach(function (el) { el.innerHTML = logo(40); });
+      document.querySelector('.icon-plus').innerHTML = icon('plus', 18);
+      document.querySelector('.icon-settings').innerHTML = icon('settings', 18);
+      $('#openSidebar').innerHTML = icon('menu', 20);
+      $('#closeSidebar').innerHTML = icon('x', 18);
+      $('#closeSettings').innerHTML = icon('x', 18);
+      $('#headerNewChat').innerHTML = icon('edit', 19);
+    }
+
+    function groupChats() {
+      var now = new Date();
+      var startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      var weekAgo = startOfToday - 6 * 864e5;
+      var groups = { today: [], previous7: [], older: [] };
+      state.chats.slice().sort(function (a, b) { return b.updatedAt - a.updatedAt; }).forEach(function (c) {
+        if (c.updatedAt >= startOfToday) groups.today.push(c);
+        else if (c.updatedAt >= weekAgo) groups.previous7.push(c);
+        else groups.older.push(c);
+      });
+      return groups;
+    }
+
+    function renderSidebar() {
+      var d = t();
+      if (state.chats.length === 0) {
+        els.history.innerHTML = '<p class="px-3 py-8 text-center text-sm text-neutral-500">' + escapeHtml(d.noChats) + '</p>';
+        return;
+      }
+      var groups = groupChats();
+      var html = '';
+      ['today', 'previous7', 'older'].forEach(function (key) {
+        if (!groups[key].length) return;
+        html += '<div class="mt-4 first:mt-2"><h3 class="px-3 pb-1.5 text-xs font-medium text-neutral-500">' + escapeHtml(d[key]) + '</h3><ul class="flex flex-col gap-0.5">';
+        groups[key].forEach(function (c) {
+          var active = c.id === state.activeId;
+          html += '<li class="group relative">' +
+            '<button type="button" data-chat="' + c.id + '" ' + (active ? 'aria-current="page"' : '') + ' class="block w-full truncate rounded-lg px-3 py-2 pr-10 text-left text-sm transition-colors ' +
+            (active ? 'bg-neutral-200 font-medium text-neutral-950 dark:bg-neutral-900 dark:text-white' : 'text-neutral-700 hover:bg-neutral-200/70 dark:text-neutral-300 dark:hover:bg-neutral-900/70') + '">' + escapeHtml(c.title) + '</button>' +
+            '<button type="button" data-delete="' + c.id + '" aria-label="' + escapeHtml(d.deleteChat) + '" class="absolute right-1.5 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-neutral-500 opacity-100 transition-opacity hover:bg-neutral-300 hover:text-neutral-950 focus-visible:opacity-100 dark:hover:bg-neutral-800 dark:hover:text-white md:opacity-0 md:group-hover:opacity-100">' + icon('trash', 14) + '</button>' +
+            '</li>';
+        });
+        html += '</ul></div>';
+      });
+      els.history.innerHTML = html;
+    }
+
+    function renderEmpty() {
+      var d = t();
+      var cards = d.suggestions.map(function (s) {
+        return '<button type="button" data-suggest="' + escapeHtml(s.prompt) + '" class="rise flex flex-col gap-1 rounded-2xl border border-neutral-200 p-4 text-left transition-colors hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-950">' +
+          '<span class="text-sm font-medium">' + escapeHtml(s.title) + '</span>' +
+          '<span class="line-clamp-2 text-sm text-neutral-500">' + escapeHtml(s.prompt) + '</span></button>';
+      }).join('');
+      els.messages.innerHTML = '<div class="flex min-h-[calc(100dvh-14rem)] flex-col items-center justify-center gap-8 py-10">' +
+        '<div class="rise flex flex-col items-center gap-4 text-center">' + logo(110) +
+        '<h1 class="text-balance text-2xl font-semibold tracking-tight md:text-3xl">' + escapeHtml(d.greeting) + '</h1>' +
+        '<p class="text-pretty text-neutral-500">' + escapeHtml(d.greetingSub) + '</p></div>' +
+        '<div class="grid w-full max-w-2xl grid-cols-1 gap-2.5 sm:grid-cols-2">' + cards + '</div></div>';
+    }
+
+    function actionButton(action, index, iconName, label) {
+      return '<button type="button" data-action="' + action + '" data-index="' + index + '" aria-label="' + escapeHtml(label) + '" title="' + escapeHtml(label) + '" class="flex size-8 items-center justify-center rounded-lg text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-950 dark:hover:bg-neutral-900 dark:hover:text-white">' + icon(iconName, 15) + '</button>';
+    }
+
+    function messageHtml(msg, index, chat) {
+      var d = t();
+      if (msg.role === 'user') {
+        return '<div class="rise flex justify-end"><div class="sr-only">' + escapeHtml(d.you) + ':</div>' +
+          '<div class="max-w-[85%] whitespace-pre-wrap break-words rounded-3xl bg-neutral-100 px-4 py-2.5 text-[15px] leading-relaxed dark:bg-neutral-900">' + escapeHtml(msg.content) + '</div></div>';
+      }
+      var isStreaming = state.streaming && state.streaming.chatId === chat.id && index === chat.messages.length - 1;
+      var isLast = index === chat.messages.length - 1;
+      var body = msg.content
+        ? '<div class="md text-[15px]">' + renderMarkdown(msg.content) + '</div>'
+        : '<div class="flex h-7 items-center gap-1" aria-label="' + escapeHtml(d.thinking) + '"><span class="dot size-1.5 rounded-full bg-current"></span><span class="dot size-1.5 rounded-full bg-current"></span><span class="dot size-1.5 rounded-full bg-current"></span></div>';
+      var actions = '';
+      if (!isStreaming && msg.content) {
+        actions = '<div class="mt-1 -ml-1.5 flex items-center gap-0.5">' +
+          actionButton('copy', index, state.copiedIndex === index ? 'check' : 'copy', state.copiedIndex === index ? d.copied : d.copy) +
+          (isLast && !state.streaming ? actionButton('regenerate', index, 'refresh', d.regenerate) : '') + '</div>';
+      }
+      return '<div class="rise flex gap-3.5"' + (isStreaming ? ' data-streaming' : '') + '>' +
+        '<div class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full border border-neutral-200 dark:border-neutral-800">' + logo(32) + '</div>' +
+        '<div class="min-w-0 flex-1 pt-0.5"><div class="sr-only">Mini.AI:</div><div class="msg-body">' + body + '</div>' + actions + '</div></div>';
+    }
+
+    function renderMessages() {
+      var chat = activeChat();
+      if (!chat || chat.messages.length === 0) { renderEmpty(); return; }
+      var d = t();
+      var html = '<div class="flex flex-col gap-8 pt-4">' + chat.messages.map(function (m, i) { return messageHtml(m, i, chat); }).join('');
+      if (chat.error) {
+        html += '<div class="rise flex items-start gap-3 rounded-2xl border border-red-500/30 bg-red-500/5 p-4 text-sm">' +
+          '<span class="mt-0.5 text-red-500">' + icon('alert', 16) + '</span>' +
+          '<div class="min-w-0 flex-1"><p class="font-medium">' + escapeHtml(d.errorMsg) + '</p>' +
+          '<p class="mt-1 break-words text-neutral-500">' + escapeHtml(chat.error) + '</p></div>' +
+          '<button type="button" data-action="retry" class="shrink-0 rounded-full border border-neutral-300 px-3 py-1 font-medium hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900">' + escapeHtml(d.retry) + '</button></div>';
+      }
+      els.messages.innerHTML = html + '</div>';
+    }
+
+    function renderComposer() {
+      var d = t();
+      if (state.streaming) {
+        els.send.innerHTML = icon('stop', 18);
+        els.send.setAttribute('aria-label', d.stop);
+        els.send.disabled = false;
+      } else {
+        els.send.innerHTML = icon('arrowUp', 18);
+        els.send.setAttribute('aria-label', d.send);
+        els.send.disabled = !els.input.value.trim();
+      }
+    }
+
+    function renderAll() {
+      applyStaticText();
+      renderSidebar();
+      renderMessages();
+      renderComposer();
+    }
+
+    function isNearBottom() {
+      var s = els.scroller;
+      return s.scrollHeight - s.scrollTop - s.clientHeight < 120;
+    }
+
+    function scrollToBottom(smooth) {
+      els.scroller.scrollTo({ top: els.scroller.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+    }
+
+    var frame = null;
+    function scheduleStreamUpdate() {
+      if (frame) return;
+      frame = requestAnimationFrame(function () {
+        frame = null;
+        var chat = activeChat();
+        var node = els.messages.querySelector('[data-streaming] .msg-body');
+        if (!chat || !node || !state.streaming || state.streaming.chatId !== chat.id) return;
+        var stick = isNearBottom();
+        var last = chat.messages[chat.messages.length - 1];
+        node.innerHTML = '<div class="md text-[15px]">' + renderMarkdown(last.content) + '</div>';
+        if (stick) scrollToBottom(false);
+      });
+    }
+
+    function systemPrompt() {
+      var s = state.settings;
+      var lang = LANGUAGES.find(function (l) { return l.code === s.language; }) || LANGUAGES[1];
+      var styleText = {
+        concise: 'Keep answers short and to the point.',
+        balanced: 'Give clear, well-structured answers of moderate length.',
+        detailed: 'Give thorough, detailed answers with examples where useful.',
+      }[s.style];
+      var prompt = 'You are Mini.AI, a helpful, precise and friendly AI assistant. Reply in ' + lang.english +
+        ' unless the user clearly writes in another language. ' + styleText + ' Use Markdown formatting when helpful.';
+      if (s.instructions.trim()) prompt += '\n\nUser instructions:\n' + s.instructions.trim();
+      return prompt;
+    }
+
+    async function streamFromApi(chat, onChunk, signal) {
+      var s = state.settings;
+      var headers = { 'Content-Type': 'application/json' };
+      if (s.apiKey.trim()) headers.Authorization = 'Bearer ' + s.apiKey.trim();
+      var history = chat.messages.slice(0, -1).map(function (m) { return { role: m.role, content: m.content }; });
+      var res = await fetch(s.baseUrl.replace(/\/+$/, '') + '/chat/completions', {
+        method: 'POST',
+        headers: headers,
+        signal: signal,
+        body: JSON.stringify({
+          model: s.customModel.trim() || s.model,
+          stream: true,
+          messages: [{ role: 'system', content: systemPrompt() }].concat(history),
+        }),
+      });
+      if (!res.ok) {
+        var detail = '';
+        try { var j = await res.json(); detail = (j.error && (j.error.message || j.error)) || j.message || ''; } catch (e) {}
+        throw new Error('HTTP ' + res.status + (detail ? ' — ' + detail : ''));
+      }
+      var reader = res.body.getReader();
+      var decoder = new TextDecoder();
+      var buffer = '';
+      while (true) {
+        var r = await reader.read();
+        if (r.done) break;
+        buffer += decoder.decode(r.value, { stream: true });
+        var lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (var i = 0; i < lines.length; i++) {
+          var line = lines[i].trim();
+          if (!line.startsWith('data:')) continue;
+          var data = line.slice(5).trim();
+          if (data === '[DONE]') return;
+          try {
+            var json = JSON.parse(data);
+            var delta = json.choices && json.choices[0] && json.choices[0].delta && json.choices[0].delta.content;
+            if (delta) onChunk(delta);
+          } catch (e) {}
+        }
+      }
+    }
+
+    async function streamDemo(chat, onChunk, signal) {
+      var question = chat.messages[chat.messages.length - 2].content;
+      var text = t().demo + question.replace(/\n/g, ' ').slice(0, 200);
+      var tokens = text.match(/\S+\s*|\s+/g) || [];
+      for (var i = 0; i < tokens.length; i++) {
+        if (signal.aborted) return;
+        await new Promise(function (r) { setTimeout(r, 22 + Math.random() * 30); });
+        onChunk(tokens[i]);
+      }
+    }
+
+    async function generate(chat) {
+      chat.error = null;
+      var assistant = { role: 'assistant', content: '' };
+      chat.messages.push(assistant);
+      var controller = new AbortController();
+      state.streaming = { chatId: chat.id, controller: controller };
+      renderAll();
+      scrollToBottom(true);
+
+      var onChunk = function (text) { assistant.content += text; scheduleStreamUpdate(); };
+      try {
+        if (isDemo()) await streamDemo(chat, onChunk, controller.signal);
+        else await streamFromApi(chat, onChunk, controller.signal);
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          chat.error = err.message === 'Failed to fetch'
+            ? 'Network/CORS error — the API could not be reached from the browser. Check the base URL and key in Settings.'
+            : err.message;
+        }
+      } finally {
+        if (!assistant.content) chat.messages.pop();
+        chat.updatedAt = Date.now();
+        state.streaming = null;
+        persistChats();
+        renderAll();
+      }
+    }
+
+    function send(text) {
+      text = text.trim();
+      if (!text || state.streaming) return;
+      var chat = activeChat();
+      if (!chat) {
+        chat = { id: uid(), title: text.slice(0, 48), messages: [], updatedAt: Date.now() };
+        state.chats.unshift(chat);
+        state.activeId = chat.id;
+      }
+      chat.messages.push({ role: 'user', content: text });
+      chat.updatedAt = Date.now();
+      els.input.value = '';
+      autosize();
+      generate(chat);
+    }
+
+    function newChat() {
+      if (state.streaming) state.streaming.controller.abort();
+      state.activeId = null;
+      closeSidebar();
+      renderAll();
+      els.input.focus();
+    }
+
+    function openSidebar() {
+      els.sidebar.classList.remove('-translate-x-full');
+      els.backdrop.classList.remove('opacity-0', 'pointer-events-none');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeSidebar() {
+      els.sidebar.classList.add('-translate-x-full');
+      els.backdrop.classList.add('opacity-0', 'pointer-events-none');
+      document.body.style.overflow = '';
+    }
+
+    function autosize() {
+      els.input.style.height = 'auto';
+      els.input.style.height = Math.min(els.input.scrollHeight, 208) + 'px';
+      renderComposer();
+    }
+
+    function segmented(name, value, options) {
+      return '<div role="radiogroup" aria-label="' + escapeHtml(name) + '" class="grid auto-cols-fr grid-flow-col gap-1 rounded-xl bg-neutral-100 p-1 dark:bg-neutral-900">' +
+        options.map(function (o) {
+          var sel = o.value === value;
+          return '<button type="button" role="radio" aria-checked="' + sel + '" data-setting="' + o.key + '" data-value="' + o.value + '" class="flex min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-medium transition-all sm:text-sm ' +
+            (sel ? 'bg-white text-neutral-950 shadow-sm dark:bg-neutral-700 dark:text-white' : 'text-neutral-500 hover:text-neutral-950 dark:hover:text-white') + '">' +
+            (o.icon ? icon(o.icon, 14) : '') + '<span class="truncate">' + escapeHtml(o.label) + '</span></button>';
+        }).join('') + '</div>';
+    }
+
+    function section(title, desc, inner) {
+      return '<section class="flex flex-col gap-3 border-b border-neutral-200 py-5 last:border-b-0 dark:border-neutral-800">' +
+        '<div><h3 class="text-sm font-medium">' + escapeHtml(title) + '</h3>' +
+        (desc ? '<p class="mt-0.5 text-xs leading-relaxed text-neutral-500">' + escapeHtml(desc) + '</p>' : '') + '</div>' + inner + '</section>';
+    }
+
+    var inputClass = 'w-full rounded-xl border border-neutral-200 bg-transparent px-3.5 py-2.5 text-sm outline-none placeholder:text-neutral-500 focus:border-neutral-400 dark:border-neutral-800 dark:focus:border-neutral-600';
+
+    function renderSettings() {
+      var d = t();
+      var s = state.settings;
+      var models = MODELS.map(function (m) {
+        var sel = s.model === m.id;
+        return '<button type="button" role="radio" aria-checked="' + sel + '" data-setting="model" data-value="' + m.id + '" class="flex items-center justify-between gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors ' +
+          (sel ? 'border-neutral-950 bg-neutral-100 dark:border-white dark:bg-neutral-900' : 'border-neutral-200 hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900/60') + '">' +
+          '<span><span class="block text-sm font-medium">' + m.name + '</span><span class="block text-xs text-neutral-500">' + escapeHtml(d.models[m.descKey]) + '</span></span>' +
+          '<span class="flex size-5 shrink-0 items-center justify-center rounded-full border ' + (sel ? 'border-neutral-950 bg-neutral-950 text-white dark:border-white dark:bg-white dark:text-black' : 'border-neutral-300 dark:border-neutral-700') + '">' + (sel ? icon('check', 12) : '') + '</span></button>';
+      }).join('');
+
+      els.settingsBody.innerHTML =
+        section(d.language, d.languageDesc, segmented(d.language, s.language, LANGUAGES.map(function (l) { return { key: 'language', value: l.code, label: l.native }; }))) +
+        section(d.theme, '', segmented(d.theme, s.theme, [
+          { key: 'theme', value: 'dark', label: d.dark, icon: 'moon' },
+          { key: 'theme', value: 'light', label: d.light, icon: 'sun' },
+          { key: 'theme', value: 'system', label: d.system, icon: 'monitor' },
+        ])) +
+        section(d.interfaceSize, d.interfaceSizeDesc,
+          '<div class="flex flex-col gap-2"><div class="flex items-center justify-between gap-3"><label for="uiScale" class="text-xs font-medium text-neutral-500">' + escapeHtml(d.interfaceSize) + '</label><output id="uiScaleValue" class="text-xs tabular-nums text-neutral-500">' + Number(s.uiScale || 100) + '%</output></div>' +
+          '<input id="uiScale" data-field="uiScale" type="range" min="85" max="120" step="1" value="' + Number(s.uiScale || 100) + '" class="w-full accent-neutral-900 dark:accent-white" />' +
+          '<div class="flex justify-between text-[11px] text-neutral-500"><span>85%</span><span>120%</span></div></div>' +
+          '<div class="mt-3 flex flex-col gap-2"><span class="text-xs font-medium text-neutral-500">' + escapeHtml(d.density) + '</span>' +
+          segmented(d.density, s.density || 'compact', [
+            { key: 'density', value: 'compact', label: d.compact },
+            { key: 'density', value: 'comfortable', label: d.comfortable },
+            { key: 'density', value: 'spacious', label: d.spacious },
+          ]) + '</div>' +
+          '<div class="mt-3 flex flex-col gap-2"><div class="flex items-center justify-between gap-3"><label for="sidebarWidth" class="text-xs font-medium text-neutral-500">' + escapeHtml(d.sidebarSize) + '</label><output id="sidebarWidthValue" class="text-xs tabular-nums text-neutral-500">' + Number(s.sidebarWidth || 100) + '%</output></div>' +
+          '<input id="sidebarWidth" data-field="sidebarWidth" type="range" min="70" max="130" step="1" value="' + Number(s.sidebarWidth || 100) + '" class="w-full accent-neutral-900 dark:accent-white" />' +
+          '<div class="flex justify-between text-[11px] text-neutral-500"><span>70%</span><span>100%</span><span>130%</span></div></div>' +
+          '<button type="button" data-reset-layout class="mt-3 self-start rounded-full border border-neutral-300 px-3 py-1.5 text-xs font-medium hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900">' + escapeHtml(d.resetLayout) + '</button>') +
+        section(d.aiPreferences, '',
+          '<div class="flex flex-col gap-2"><span class="text-xs font-medium text-neutral-500">' + escapeHtml(d.model) + '</span><div role="radiogroup" aria-label="' + escapeHtml(d.model) + '" class="flex flex-col gap-1.5">' + models + '</div></div>' +
+          '<div class="mt-2 flex flex-col gap-2"><span class="text-xs font-medium text-neutral-500">' + escapeHtml(d.responseStyle) + '</span>' +
+          segmented(d.responseStyle, s.style, STYLES.map(function (st) { return { key: 'style', value: st, label: d[st] }; })) + '</div>' +
+          '<div class="mt-2 flex flex-col gap-2"><label for="instructions" class="text-xs font-medium text-neutral-500">' + escapeHtml(d.customInstructions) + '</label>' +
+          '<textarea id="instructions" data-field="instructions" rows="3" maxlength="1000" placeholder="' + escapeHtml(d.customPlaceholder) + '" class="resize-none ' + inputClass + '">' + escapeHtml(s.instructions) + '</textarea></div>') +
+        section(d.dataControls, '',
+          '<div class="flex items-center justify-between gap-4"><p class="text-sm text-neutral-500">' + escapeHtml(d.clearChatsDesc) + '</p>' +
+          '<button type="button" data-clear ' + (state.chats.length ? '' : 'disabled') + ' class="shrink-0 rounded-full border border-red-500/50 px-4 py-1.5 text-sm font-medium text-red-500 transition-colors hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-40">' + escapeHtml(d.clear) + '</button></div>');
+    }
+
+    var lastFocus = null;
+    function openSettings() {
+      lastFocus = document.activeElement;
+      closeSidebar();
+      renderSettings();
+      els.modal.classList.remove('hidden');
+      els.modal.classList.add('flex');
+      $('#closeSettings').focus();
+    }
+
+    function closeSettings() {
+      els.modal.classList.add('hidden');
+      els.modal.classList.remove('flex');
+      if (lastFocus) lastFocus.focus();
+    }
+
+    function updateSetting(key, value) {
+      state.settings[key] = value;
+      save('mini.settings', state.settings);
+      if (key === 'theme') applyTheme();
+      if (key === 'uiScale' || key === 'density' || key === 'sidebarWidth') applyLayout();
+    }
+
+    $('#openSidebar').addEventListener('click', openSidebar);
+    $('#closeSidebar').addEventListener('click', closeSidebar);
+    els.backdrop.addEventListener('click', closeSidebar);
+    $('#newChatBtn').addEventListener('click', newChat);
+    $('#headerNewChat').addEventListener('click', newChat);
+    $('#settingsBtn').addEventListener('click', openSettings);
+    $('#closeSettings').addEventListener('click', closeSettings);
+    els.modal.addEventListener('click', function (e) { if (e.target === els.modal) closeSettings(); });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      if (!els.modal.classList.contains('hidden')) closeSettings();
+      else closeSidebar();
+    });
+
+    els.history.addEventListener('click', function (e) {
+      var del = e.target.closest('[data-delete]');
+      if (del) {
+        var id = del.dataset.delete;
+        if (state.streaming && state.streaming.chatId === id) state.streaming.controller.abort();
+        state.chats = state.chats.filter(function (c) { return c.id !== id; });
+        if (state.activeId === id) state.activeId = null;
+        persistChats();
+        renderAll();
+        return;
+      }
+      var item = e.target.closest('[data-chat]');
+      if (item) {
+        state.activeId = item.dataset.chat;
+        closeSidebar();
+        renderAll();
+        scrollToBottom(false);
+      }
+    });
+
+    els.messages.addEventListener('click', function (e) {
+      var sug = e.target.closest('[data-suggest]');
+      if (sug) { send(sug.dataset.suggest); return; }
+      var btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      var chat = activeChat();
+      if (!chat || state.streaming) return;
+      var action = btn.dataset.action;
+      if (action === 'copy') {
+        var idx = Number(btn.dataset.index);
+        navigator.clipboard.writeText(chat.messages[idx].content).then(function () {
+          state.copiedIndex = idx;
+          renderMessages();
+          setTimeout(function () { state.copiedIndex = null; renderMessages(); }, 1500);
+        });
+      } else if (action === 'regenerate') {
+        chat.messages.pop();
+        generate(chat);
+      } else if (action === 'retry') {
+        generate(chat);
+      }
+    });
+
+    els.composer.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (state.streaming) state.streaming.controller.abort();
+      else send(els.input.value);
+    });
+
+    els.input.addEventListener('input', autosize);
+    els.input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        if (e.isComposing || e.keyCode === 229) return;
+        e.preventDefault();
+        if (!state.streaming) send(els.input.value);
+      }
+    });
+
+    els.settingsBody.addEventListener('click', function (e) {
+      var opt = e.target.closest('[data-setting]');
+      if (opt) {
+        updateSetting(opt.dataset.setting, opt.dataset.value);
+        renderSettings();
+        renderAll();
+        return;
+      }
+      if (e.target.closest('[data-reset-layout]')) {
+        updateSetting('uiScale', 100);
+        updateSetting('density', 'compact');
+        updateSetting('sidebarWidth', 100);
+        renderSettings();
+        applyLayout();
+        return;
+      }
+      if (e.target.closest('[data-clear]')) {
+        if (state.streaming) state.streaming.controller.abort();
+        state.chats = [];
+        state.activeId = null;
+        persistChats();
+        renderAll();
+        closeSettings();
+      }
+    });
+
+    els.settingsBody.addEventListener('input', function (e) {
+      var field = e.target.dataset.field;
+      if (!field) return;
+      var value = e.target.value;
+      if (field === 'uiScale' || field === 'sidebarWidth') value = Number(value);
+      updateSetting(field, value);
+      applyStaticText();
+      applyLayout();
+    });
+
+    window.addEventListener('resize', function () { if (window.innerWidth >= 768) closeSidebar(); });
+
+    applyTheme();
+    applyLayout();
+    renderStaticIcons();
+    renderAll();
+    els.input.focus();
+  })();
+  </script>
+</body>
+</html>
